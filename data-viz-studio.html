@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Visualization Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--cd:#fff;--tx:#1d2433;--mu:#6b7385;--ac:#3b6fd4;--bd:#dfe3ec}
+@media(prefers-color-scheme:dark){:root{--bg:#12151c;--cd:#1b2029;--tx:#e8ebf2;--mu:#9aa3b5;--bd:#2c3442;--ac:#6c9bff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:Sarabun,'Noto Sans Thai',sans-serif;line-height:1.6}
+.w{max-width:1000px;margin:auto;padding:20px 16px 50px}h1{margin:0 0 4px;font-size:26px}.sub{color:var(--mu);margin:0 0 18px}
+.cd{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+h2{font-size:16px;margin:0 0 10px}h2 span{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;font-size:13px;margin-right:8px}
+.g{display:flex;flex-wrap:wrap;gap:8px}
+button,.b{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:8px 14px;border-radius:9px;cursor:pointer}
+button:hover,.b:hover{border-color:var(--ac)}.on{background:var(--ac)!important;color:#fff!important;border-color:var(--ac)!important}
+.sw{display:inline-flex;gap:2px;margin-right:7px;vertical-align:middle}.sw i{width:10px;height:14px;display:block}
+#run{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600;padding:10px 28px;font-size:16px}
+#msg{color:#d33;margin-top:8px;min-height:20px}#fn{color:var(--mu);font-size:14px;margin-left:6px}
+canvas{width:100%;height:auto;background:#fff;border-radius:10px;border:1px solid var(--bd)}
+#exp ul{padding-left:20px;margin:6px 0}#exp p{color:var(--mu);margin:0}
+</style></head><body><div class="w">
+<h1>📊 Data Visualization Studio</h1><p class="sub">เลือกรูปแบบ → เลือกโทนสี → แนบไฟล์ Excel → ประมวลผล</p>
+<div class="cd"><h2><span>1</span>เลือก Visualization</h2><div class="g" id="vz"></div></div>
+<div class="cd"><h2><span>2</span>เลือกโทนสี</h2><div class="g" id="th"></div></div>
+<div class="cd"><h2><span>3</span>ข้อมูล</h2><div class="g" style="align-items:center">
+<label class="b">📁 แนบไฟล์ Excel (.xlsx/.xls/.csv)<input type="file" id="f" accept=".xlsx,.xls,.csv" hidden></label>
+<button id="demo">🧪 ทดลองใช้ข้อมูลตัวอย่าง</button><button id="dl">⬇ ดาวน์โหลดไฟล์ตัวอย่าง (.xlsx)</button><span id="fn"></span></div></div>
+<div class="cd"><h2><span>4</span>ประมวลผล</h2><div class="g"><button id="run">▶ ประมวลผล</button><button id="reset">↺ Reset</button></div><div id="msg"></div></div>
+<div class="cd" id="res" hidden><canvas id="cv"></canvas>
+<div id="exp" style="margin-top:12px"></div><div class="g" style="margin-top:10px"><button id="png">🖼 ดาวน์โหลด PNG</button></div></div>
+</div>
+<script>
+const V=[
+['box','Boxplot','n','แสดงค่ามัธยฐาน ควอร์ไทล์ และค่าผิดปกติ (outlier) ของแต่ละตัวแปรแยกตามกลุ่ม (ปรับสเกลแต่ละตัวแปรเป็น 0–100% เพื่อเทียบกันได้)'],
+['violin','Violin Plot','n','แสดงรูปร่างความหนาแน่น (KDE) ของข้อมูล ช่วยให้เห็นการกระจายแบบหลายยอด ซึ่ง Boxplot มองไม่เห็น'],
+['scatter','Scatter Plot','n','แสดงความสัมพันธ์ระหว่างตัวแปรตัวเลข 2 ตัวแรก แต่ละจุดคือหนึ่งแถวข้อมูล สีแทนกลุ่ม'],
+['sieve','Sieve Diagram','c','พื้นที่ช่องแทนความถี่ที่คาดหวัง ความหนาแน่นของเส้นตารางแทนความถี่ที่สังเกตได้ (น้ำเงิน = มากกว่าคาด, แดง = น้อยกว่าคาด)'],
+['mosaic','Mosaic Display','c','ความกว้างแทนสัดส่วนของตัวแปรแรก ความสูงแทนสัดส่วนของตัวแปรที่สองภายในแต่ละกลุ่ม สีเข้มคือเบี่ยงเบนจากค่าคาดหวังมาก'],
+['tree','Tree Viewer','n','ต้นไม้ตัดสินใจ (Gini, ลึกสูงสุด 3 ชั้น) แสดงเงื่อนไขที่แยกกลุ่มได้ดีที่สุด'],
+['freeviz','FreeViz','n','ฉายข้อมูลหลายมิติลง 2 มิติ โดยปรับทิศของแต่ละตัวแปรให้ชี้ไปหากลุ่มที่มันมีค่าสูง'],
+['linear','Linear Projection','n','ฉายข้อมูลด้วย PCA 2 องค์ประกอบแรก ซึ่งเก็บความแปรปรวนไว้มากที่สุด'],
+['radviz','Radviz','n','ตัวแปรเป็นจุดยึดบนวงกลม จุดข้อมูลถูกดึงเข้าหาตัวแปรที่มีค่ามากเหมือนสปริง'],
+['venn','Venn Diagram','s','แสดงจำนวนข้อมูลที่อยู่ในแต่ละชุดและส่วนที่ซ้อนทับกัน (คอลัมน์ 0/1 หรือแปลงด้วยค่ามัธยฐาน)'],
+['heat','Heatmap','n','แผนที่ความร้อนของสหสัมพันธ์ (Pearson) ระหว่างตัวแปรตัวเลขทุกคู่'],
+['sil','Silhouette Plot','n','วัดว่าแต่ละจุดอยู่ในกลุ่มของตัวเองได้เหมาะสมเพียงใด (−1 ถึง 1) ยิ่งใกล้ 1 ยิ่งแยกกลุ่มชัด'],
+['nomo','Nomogram','n','แปลงโมเดล Logistic Regression เป็นสเกลคะแนน (กลุ่มสุดท้าย เทียบกับกลุ่มอื่น) บวกคะแนนแล้วอ่านความน่าจะเป็น'],
+['nn','Neural Network','n','โครงข่ายประสาทเทียม 1 ชั้นซ่อน (6 โหนด) เส้นน้ำเงิน = น้ำหนักบวก, เส้นแดง = น้ำหนักลบ ความหนา = ขนาดน้ำหนัก']];
+const T=[['มหาสมุทร',['#1f77b4','#2ec4b6','#ff9f1c','#e63946','#6a4c93','#8d99ae']],['พระอาทิตย์ตก',['#f4743b','#fcbf49','#2a9d8f','#c1121f','#7b2cbf','#6d597a']],['ป่าไม้',['#2d6a4f','#95d5b2','#e9c46a','#bc4749','#6b705c','#40916c']],['เบอร์รี่',['#7b2d8e','#e86aa0','#2b9eb3','#e5383b','#5e60ce','#9d8189']],['โมโนโทน',['#264653','#5c7a89','#e76f51','#b23a48','#8d99ae','#adb5bd']]];
+const $=i=>document.getElementById(i),W=900,H=580,cv=$('cv'),c=cv.getContext('2d');cv.width=W;cv.height=H;
+let sel='box',th=0,D=null,sd=7;const rnd=()=>(sd=sd*16807%2147483647)/2147483647,nr=()=>(rnd()+rnd()+rnd()+rnd()+rnd()+rnd()-3)*1.41;
+const cc=i=>T[th][1][i%6],hx=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16)),mix=(a,b,t)=>{a=hx(a);b=hx(b);return`rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*t))})`};
+const mean=a=>a.reduce((s,v)=>s+v,0)/a.length,sdv=a=>{const m=mean(a);return Math.sqrt(mean(a.map(v=>(v-m)**2)))||1},q=(a,p)=>{const s=[...a].sort((x,y)=>x-y),i=(s.length-1)*p,l=~~i;return s[l]+(s[Math.min(l+1,s.length-1)]-s[l])*(i-l)};
+const col=j=>D.X.map(r=>r[j]),msg=s=>$('msg').textContent=s,need=k=>{if(D.nc.length<k)throw Error(`ต้องมีคอลัมน์ตัวเลขอย่างน้อย ${k} คอลัมน์`)};
+const t=(s,x,y,sz=12,al='left',co='#333',b=0)=>{c.font=(b?'600 ':'')+sz+'px Sarabun,sans-serif';c.textAlign=al;c.fillStyle=co;c.fillText(s,x,y)};
+const ln=(a,b,x,y,co='#ccc',w=1)=>{c.strokeStyle=co;c.lineWidth=w;c.beginPath();c.moveTo(a,b);c.lineTo(x,y);c.stroke()};
+const dot=(x,y,r,co)=>{c.globalAlpha=.75;c.fillStyle=co;c.beginPath();c.arc(x,y,r,0,7);c.fill();c.globalAlpha=1};
+const leg=()=>D.cls.forEach((k,i)=>{c.fillStyle=cc(i);c.fillRect(80+i*130,40,12,12);t(k,97+i*130,51,12)});
+function plot(x0,x1,y0,y1,xl,yl){const L=80,R=W-40,T0=65,B=H-70,sx=v=>L+(v-x0)/(x1-x0||1)*(R-L),sy=v=>B-(v-y0)/(y1-y0||1)*(B-T0);
+for(let i=0;i<=5;i++){const vx=x0+(x1-x0)*i/5,vy=y0+(y1-y0)*i/5;ln(sx(vx),T0,sx(vx),B,'#eee');ln(L,sy(vy),R,sy(vy),'#eee');t(vx.toFixed(1),sx(vx),B+16,11,'center','#666');t(vy.toFixed(1),L-8,sy(vy)+4,11,'right','#666')}
+ln(L,B,R,B,'#666');ln(L,T0,L,B,'#666');t(xl,(L+R)/2,B+40,13,'center');c.save();c.translate(22,(T0+B)/2);c.rotate(-Math.PI/2);t(yl,0,0,13,'center');c.restore();return[sx,sy]}
+// ---------- data ----------
+const mk={n:()=>{const r=[['species']];[['Setosa',[5,3.4,1.5,.25]],['Versicolor',[5.9,2.8,4.3,1.3]],['Virginica',[6.6,3,5.5,2]]].forEach(([k,m])=>{for(let i=0;i<40;i++)r.push([...m.map((v,j)=>+(v+nr()*[.35,.3,.45,.2][j]).toFixed(2)),k])});r[0]=['sepal_length','sepal_width','petal_length','petal_width','species'];return r},
+c:()=>{const d=['HR','IT','Sales','Ops'],l=['Junior','Mid','Senior'],r=[['department','level','satisfaction']];for(let i=0;i<200;i++){const a=d[~~(rnd()*4)],b=l[Math.min(2,~~(rnd()*3+(a=='IT'?.6:0)))];r.push([a,b,rnd()<(b=='Senior'?.75:b=='Mid'?.55:.35)?'High':'Low'])}return r},
+s:()=>{const r=[['Mobile','Web','Store']];for(let i=0;i<150;i++){const m=rnd()<.5?1:0;r.push([m,rnd()<(m?.6:.3)?1:0,rnd()<.4?1:0])}return r}};
+function prep(a){const h=a[0].map(String),rows=a.slice(1).filter(r=>r.some(v=>v!==''&&v!=null));
+const isN=h.map((_,j)=>{const v=rows.map(r=>r[j]).filter(x=>x!==''&&x!=null);return v.length&&v.filter(x=>isFinite(+x)).length/v.length>.9}),nc=h.filter((_,j)=>isN[j]),cc2=h.filter((_,j)=>!isN[j]),idx=nc.map(n=>h.indexOf(n)),ci=cc2.length?h.indexOf(cc2[0]):-1;
+const ok=rows.filter(r=>idx.every(j=>r[j]!==''&&isFinite(+r[j])));if(!ok.length)throw Error('ไม่พบข้อมูลที่ใช้ได้');
+const X=ok.map(r=>idx.map(j=>+r[j])),lab=ok.map(r=>ci<0?'ทั้งหมด':String(r[ci])),cls=[...new Set(lab)],k=nc.length,cl=j=>X.map(r=>r[j]);
+const mu=nc.map((_,j)=>mean(cl(j))),sg=nc.map((_,j)=>sdv(cl(j))),lo=nc.map((_,j)=>Math.min(...cl(j))),hi=nc.map((_,j)=>Math.max(...cl(j)));
+return{h,rows:ok,nc,cc:cc2,X,lab,cls,ci,y:lab.map(l=>cls.indexOf(l)),n:ok.length,mu,sg,S:X.map(r=>r.map((v,j)=>(v-mu[j])/sg[j])),Z:X.map(r=>r.map((v,j)=>(v-lo[j])/(hi[j]-lo[j]||1)))}}
+// ---------- charts ----------
+function boxv(vi){const k=D.nc.length,K=D.cls.length,L=70,R=W-30,T0=75,B=H-70,gw=(R-L)/k;let ex='';
+for(let i=0;i<=4;i++){const y=B-(B-T0)*i/4;ln(L,y,R,y,'#eee');t(i*25+'%',L-8,y+4,11,'right','#666')}ln(L,B,R,B,'#666');
+D.nc.forEach((n,j)=>{const a=col(j),lo=Math.min(...a),hi=Math.max(...a),Y=v=>B-(v-lo)/(hi-lo||1)*(B-T0),x0=L+j*gw;t(n,x0+gw/2,B+20,12,'center');t(lo.toFixed(1)+' – '+hi.toFixed(1),x0+gw/2,B+36,10,'center','#888');let best='',bm=-1e9;
+D.cls.forEach((kn,ci)=>{const v=a.filter((_,i)=>D.y[i]==ci);if(!v.length)return;const xc=x0+gw*(ci+.5)/K,bw=gw/K*.62,co=cc(ci),m=q(v,.5);if(m>bm){bm=m;best=kn}
+if(!vi){const q1=q(v,.25),q3=q(v,.75),iq=q3-q1,lw=Math.min(...v.filter(x=>x>=q1-1.5*iq)),uw=Math.max(...v.filter(x=>x<=q3+1.5*iq));ln(xc,Y(lw),xc,Y(uw),co,1.5);ln(xc-bw/4,Y(lw),xc+bw/4,Y(lw),co,1.5);ln(xc-bw/4,Y(uw),xc+bw/4,Y(uw),co,1.5);
+c.globalAlpha=.55;c.fillStyle=co;c.fillRect(xc-bw/2,Y(q3),bw,Y(q1)-Y(q3));c.globalAlpha=1;c.strokeStyle=co;c.lineWidth=1.5;c.strokeRect(xc-bw/2,Y(q3),bw,Y(q1)-Y(q3));ln(xc-bw/2,Y(m),xc+bw/2,Y(m),'#222',2.5);v.filter(x=>x<lw||x>uw).forEach(x=>dot(xc,Y(x),3,co))}
+else{const h=1.06*sdv(v)*v.length**-.2||.1,P=[];let mx=0;for(let u=0;u<=40;u++){const x=Math.min(...v)+(Math.max(...v)-Math.min(...v))*u/40,d=v.reduce((s,e)=>s+Math.exp(-.5*((x-e)/h)**2),0);mx=Math.max(mx,d);P.push([x,d])}
+c.globalAlpha=.6;c.fillStyle=co;c.beginPath();P.forEach(([x,d],u)=>c[u?'lineTo':'moveTo'](xc+d/mx*bw/2,Y(x)));[...P].reverse().forEach(([x,d])=>c.lineTo(xc-d/mx*bw/2,Y(x)));c.fill();c.globalAlpha=1;c.strokeStyle=co;c.stroke();dot(xc,Y(m),4,'#fff');c.strokeStyle='#222';c.stroke()}});
+ex+=`<li><b>${n}</b>: กลุ่ม <b>${best}</b> มีค่ามัธยฐานสูงสุด (${bm.toFixed(2)}) ช่วงข้อมูลรวม ${lo.toFixed(2)}–${hi.toFixed(2)}</li>`});return ex}
+function scat(){need(2);const a=col(0),b=col(1),p=.05,r=D.S.reduce((s,z)=>s+z[0]*z[1],0)/D.n,[x0,x1]=[Math.min(...a),Math.max(...a)],[y0,y1]=[Math.min(...b),Math.max(...b)];
+const[sx,sy]=plot(x0-(x1-x0)*p,x1+(x1-x0)*p,y0-(y1-y0)*p,y1+(y1-y0)*p,D.nc[0],D.nc[1]);a.forEach((v,i)=>dot(sx(v),sy(b[i]),4.5,cc(D.y[i])));
+return`<li>สหสัมพันธ์ Pearson ระหว่าง ${D.nc[0]} และ ${D.nc[1]} = <b>${r.toFixed(3)}</b> (${Math.abs(r)>.7?'สูง':Math.abs(r)>.4?'ปานกลาง':'ต่ำ'}${r>0?' ทิศทางเดียวกัน':' ทิศทางตรงข้าม'})</li><li>จำนวนข้อมูล ${D.n} จุด, ${D.cls.length} กลุ่ม</li>`}
+function fac(){const f=[];D.cc.forEach(n=>{const j=D.h.indexOf(n);f.push([n,D.rows.map(r=>String(r[j]))])});D.nc.forEach((n,j)=>{const a=col(j),q1=q(a,1/3),q2=q(a,2/3);f.push([n+' (แบ่งช่วง)',a.map(v=>v<=q1?'ต่ำ':v<=q2?'กลาง':'สูง')])});if(f.length<2)throw Error('ต้องมีอย่างน้อย 2 คอลัมน์');return f}
+function cont(mo){const[[an,a],[bn,b]]=fac(),ra=[...new Set(a)],rb=[...new Set(b)],n=a.length,O=ra.map(x=>rb.map(y=>a.filter((v,i)=>v==x&&b[i]==y).length)),rt=O.map(r=>r.reduce((s,v)=>s+v,0)),ct=rb.map((_,j)=>O.reduce((s,r)=>s+r[j],0)),E=(i,j)=>rt[i]*ct[j]/n,L=110,R=W-40,T0=60,B=H-70;
+let chi=0,bst=[0,0,0],x=L;ra.forEach((_,i)=>{const w=(R-L)*rt[i]/n;let y=T0;rb.forEach((_,j)=>{const e=E(i,j),o=O[i][j],res=e?(o-e)/Math.sqrt(e):0;chi+=res*res;if(Math.abs(res)>Math.abs(bst[0]))bst=[res,i,j];
+const h=mo?(B-T0)*o/rt[i]:(B-T0)*ct[j]/n,co=o>=e?cc(0):cc(3);
+if(mo){c.fillStyle=mix('#ffffff',co,Math.min(.9,.12+Math.abs(res)/3));c.fillRect(x+1.5,y+1.5,w-3,h-3);t(`${rb[j]}: ${o}`,x+w/2,y+h/2+4,12,'center','#222')}
+else{c.strokeStyle=co;c.lineWidth=.8;c.save();c.beginPath();c.rect(x,y,w,h);c.clip();const sp=Math.max(3,Math.sqrt(w*h/Math.max(o,1)));if(o>0)for(let u=sp;u<Math.max(w,h);u+=sp){if(u<w)ln(x+u,y,x+u,y+h,co,.8);if(u<h)ln(x,y+u,x+w,y+u,co,.8)}c.restore();c.lineWidth=1.5;c.strokeStyle=co;c.strokeRect(x,y,w,h);t(`${o} / ${e.toFixed(1)}`,x+w/2,y+h/2+4,11,'center','#222',1)}
+if(!i)t(rb[j],L-8,y+h/2+4,12,'right');y+=h});t(ra[i],x+w/2,B+18,12,'center');x+=w});
+if(mo)ra.length&&0;t(an,(L+R)/2,H-20,13,'center',  '#222',1);c.save();c.translate(16,(T0+B)/2);c.rotate(-Math.PI/2);t(bn,0,0,13,'center','#222',1);c.restore();
+return`<li>แกนนอน: <b>${an}</b>, แกนตั้ง: <b>${bn}</b> (${n} แถว)</li><li>ค่า χ² = <b>${chi.toFixed(2)}</b>, df = ${(ra.length-1)*(rb.length-1)} — ยิ่งสูงยิ่งมีความสัมพันธ์กัน</li><li>ช่องที่เบี่ยงเบนจากค่าคาดหวังมากที่สุด: <b>${ra[bst[1]]} × ${rb[bst[2]]}</b> (${bst[0]>0?'มากกว่า':'น้อยกว่า'}ที่คาด)</li>`}
+function gini(ix){const n=ix.length,ct=D.cls.map((_,k)=>ix.filter(i=>D.y[i]==k).length);return[1-ct.reduce((s,v)=>s+(v/n)**2,0),ct]}
+function grow(ix,d){const[g,ct]=gini(ix),nd={n:ix.length,ct,p:ct.indexOf(Math.max(...ct))};if(d>=3||g==0||ix.length<6)return nd;let b=null;
+D.nc.forEach((_,j)=>{const s=[...new Set(ix.map(i=>D.X[i][j]))].sort((x,y)=>x-y);for(let u=0;u<s.length-1;u++){const th=(s[u]+s[u+1])/2,A=ix.filter(i=>D.X[i][j]<=th),B=ix.filter(i=>D.X[i][j]>th),sc=(gini(A)[0]*A.length+gini(B)[0]*B.length)/ix.length;if(!b||sc<b.sc)b={sc,j,th,A,B}}});
+if(!b||b.sc>=g-1e-9)return nd;nd.j=b.j;nd.th=b.th;nd.l=grow(b.A,d+1);nd.r=grow(b.B,d+1);return nd}
+function tree(){if(D.cls.length<2)throw Error('ต้องมีคอลัมน์กลุ่ม/คลาสอย่างน้อย 2 กลุ่ม');const root=grow(D.y.map((_,i)=>i),0);let lf=0;const cnt=n=>n.l?cnt(n.l)+cnt(n.r):1,NL=cnt(root),pos=(n,d)=>{n.d=d;if(n.l){pos(n.l,d+1);pos(n.r,d+1);n.x=(n.l.x+n.r.x)/2}else n.x=(lf++ +.5)*(W/NL)},y=d=>90+d*115,bw=Math.min(130,W/NL-8);pos(root,0);
+const ed=n=>{if(n.l){[n.l,n.r].forEach((m,i)=>{ln(n.x,y(n.d)+24,m.x,y(m.d)-24,'#999',1.5);t(i?'>':'≤',(n.x+m.x)/2+(i?12:-12),(y(n.d)+y(m.d))/2,13,'center','#555')});ed(n.l);ed(n.r)}};ed(root);
+let ok=0;const nd=n=>{const Y=y(n.d);c.fillStyle=mix('#ffffff',cc(n.p),.28);c.strokeStyle=cc(n.p);c.lineWidth=1.5;c.fillRect(n.x-bw/2,Y-24,bw,48);c.strokeRect(n.x-bw/2,Y-24,bw,48);
+if(n.l){t(`${D.nc[n.j]} ≤ ${n.th.toFixed(2)}`,n.x,Y-6,10,'center','#222',1);t('n='+n.n,n.x,Y+8,10,'center','#555');nd(n.l);nd(n.r)}else{t(D.cls[n.p],n.x,Y-6,12,'center','#222',1);t('n='+n.n,n.x,Y+8,10,'center','#555');ok+=n.ct[n.p]}
+let x=n.x-bw/2;n.ct.forEach((v,k)=>{const w=bw*v/n.n;c.fillStyle=cc(k);c.fillRect(x,Y+16,w,8);x+=w})};nd(root);
+return`<li>ตัวแปรแรกที่ใช้แบ่งกลุ่มดีที่สุด: <b>${D.nc[root.j]}</b> ที่ค่า ${root.th?.toFixed(2)}</li><li>ความแม่นยำบนข้อมูลที่ใช้สร้าง = <b>${(ok/D.n*100).toFixed(1)}%</b> จำนวนใบ ${NL}</li><li>แถบสีใต้โหนดคือสัดส่วนของแต่ละกลุ่ม</li>`}
+const CX=W/2,CY=H/2+25,RR=225,circ=()=>{c.strokeStyle='#999';c.lineWidth=1;c.beginPath();c.arc(CX,CY,RR,0,7);c.stroke()};
+function anch(A,show){A.forEach((a,j)=>{const x=CX+a[0]*RR,y=CY-a[1]*RR;if(show)ln(CX,CY,x,y,'#bbb',1.5);c.fillStyle='#444';c.fillRect(x-4,y-4,8,8);t(D.nc[j],x+a[0]*14,y-a[1]*14+4,12,Math.abs(a[0])<.3?'center':a[0]>0?'left':'right','#222',1)})}
+function radviz(){need(2);const k=D.nc.length,A=D.nc.map((_,j)=>[Math.cos(2*Math.PI*j/k),Math.sin(2*Math.PI*j/k)]);circ();D.Z.forEach((z,i)=>{const s=z.reduce((a,b)=>a+b,0)||1;dot(CX+z.reduce((a,v,j)=>a+v*A[j][0],0)/s*RR,CY-z.reduce((a,v,j)=>a+v*A[j][1],0)/s*RR,4.5,cc(D.y[i]))});anch(A,0);
+return`<li>จุดที่อยู่ใกล้ตัวแปรใด แสดงว่ามีค่าตัวแปรนั้นสูงเมื่อเทียบกับตัวแปรอื่น</li><li>กลุ่มที่แยกตัวออกจากกันบนวงกลม แสดงว่ารูปแบบค่าตัวแปรต่างกัน</li><li>มี ${k} ตัวแปร ${D.n} แถว (ลำดับตัวแปรบนวงกลมมีผลต่อรูป)</li>`}
+function freeviz(){need(2);const k=D.nc.length,K=D.cls.length,m=D.nc.map((_,j)=>D.cls.map((_,ci)=>mean(D.Z.filter((_,i)=>D.y[i]==ci).map(z=>z[j]))));
+let A=m.map((r,j)=>{const mm=mean(r);return r.reduce((s,v,ci)=>[s[0]+(v-mm)*Math.cos(2*Math.PI*ci/K),s[1]+(v-mm)*Math.sin(2*Math.PI*ci/K)],[0,0])});let mx=Math.max(...A.map(a=>Math.hypot(...a)));
+if(K<2||mx<1e-6){A=D.nc.map((_,j)=>[Math.cos(2*Math.PI*j/k),Math.sin(2*Math.PI*j/k)]);mx=1}A=A.map(a=>[a[0]/mx,a[1]/mx]);
+const P=D.Z.map(z=>[z.reduce((s,v,j)=>s+(v-.5)*A[j][0],0),z.reduce((s,v,j)=>s+(v-.5)*A[j][1],0)]),pm=Math.max(...P.map(p=>Math.hypot(...p)))||1;circ();P.forEach((p,i)=>dot(CX+p[0]/pm*.9*RR,CY-p[1]/pm*.9*RR,4.5,cc(D.y[i])));anch(A,1);
+return D.nc.map((n,j)=>`<li><b>${n}</b> มีค่าสูงสุดในกลุ่ม <b>${D.cls[m[j].indexOf(Math.max(...m[j]))]}</b> (ค่าเฉลี่ยปรับสเกล ${Math.max(...m[j]).toFixed(2)})</li>`).join('')+'<li>ลูกศรที่ยาวคือตัวแปรที่แยกกลุ่มได้ดี</li>'}
+function pca(){need(2);const k=D.nc.length,C=Array.from({length:k},(_,a)=>Array.from({length:k},(_,b)=>D.S.reduce((s,z)=>s+z[a]*z[b],0)/D.n)),tr=C.reduce((s,r,i)=>s+r[i],0),V2=[],ev=[];
+for(let e=0;e<2;e++){let v=Array.from({length:k},(_,i)=>1+i*.3+e);for(let it=0;it<200;it++){const w=C.map(r=>r.reduce((s,x,j)=>s+x*v[j],0)),n=Math.hypot(...w)||1;v=w.map(x=>x/n)}const w=C.map(r=>r.reduce((s,x,j)=>s+x*v[j],0)),l=v.reduce((s,x,i)=>s+x*w[i],0);V2.push(v);ev.push(l);C.forEach((r,a)=>r.forEach((_,b)=>C[a][b]-=l*v[a]*v[b]))}
+const P=D.S.map(z=>V2.map(v=>z.reduce((s,x,j)=>s+x*v[j],0))),r=i=>[Math.min(...P.map(p=>p[i])),Math.max(...P.map(p=>p[i]))],[a0,a1]=r(0),[b0,b1]=r(1),[sx,sy]=plot(a0-.3,a1+.3,b0-.3,b1+.3,`PC1 (${(ev[0]/tr*100).toFixed(1)}%)`,`PC2 (${(ev[1]/tr*100).toFixed(1)}%)`);P.forEach((p,i)=>dot(sx(p[0]),sy(p[1]),4.5,cc(D.y[i])));
+return`<li>PC1 อธิบายความแปรปรวน <b>${(ev[0]/tr*100).toFixed(1)}%</b>, PC2 อีก <b>${(ev[1]/tr*100).toFixed(1)}%</b> รวม ${((ev[0]+ev[1])/tr*100).toFixed(1)}%</li>`+[0,1].map(e=>{const i=V2[e].map(Math.abs).indexOf(Math.max(...V2[e].map(Math.abs)));return`<li>PC${e+1} ได้รับอิทธิพลสูงสุดจาก <b>${D.nc[i]}</b> (loading ${V2[e][i].toFixed(2)})</li>`}).join('')}
+function venn(){const B=D.nc.map((n,j)=>{const a=col(j);return{n,a,b:a.every(v=>v==0||v==1)}}),S=[...B.filter(x=>x.b),...B.filter(x=>!x.b)].slice(0,3);if(S.length<2)throw Error('ต้องมีคอลัมน์ตัวเลข (เช่น 0/1) อย่างน้อย 2 คอลัมน์');
+const M=S.map(s=>s.b?s.a.map(v=>v==1):s.a.map(v=>v>q(s.a,.5))),m=S.length,ct=Array(1<<m).fill(0);D.X.forEach((_,i)=>{let k=0;M.forEach((r,j)=>{if(r[i])k|=1<<j});ct[k]++});
+const C=m==3?[[350,240],[550,240],[450,410]]:[[370,290],[530,290]],r=m==3?145:150,NL=m==3?[[230,105],[670,105],[450,H-12]]:[[320,120],[580,120]],PM=m==3?{1:[285,225],2:[615,225],4:[450,475],3:[450,180],5:[385,350],6:[515,350],7:[450,290]}:{1:[310,295],2:[590,295],3:[450,295]};
+C.forEach(([x,y],j)=>{c.globalAlpha=.4;c.fillStyle=cc(j);c.beginPath();c.arc(x,y,r,0,7);c.fill();c.globalAlpha=1;c.strokeStyle=cc(j);c.lineWidth=2;c.stroke();t(S[j].n,NL[j][0],NL[j][1],14,'center','#222',1)});
+for(const k in PM)t(ct[k],PM[k][0],PM[k][1],20,'center','#222',1);t('ไม่อยู่ในชุดใด: '+ct[0],W-20,H-15,12,'right','#555');
+const sz=j=>M[j].filter(Boolean).length,both=M[0].filter((v,i)=>v&&M[1][i]).length;
+return S.map((s,j)=>`<li>ชุด <b>${s.n}</b>${s.b?'':' (ค่า > มัธยฐาน)'}: ${sz(j)} รายการ (${(sz(j)/D.n*100).toFixed(1)}%)</li>`).join('')+`<li>ส่วนซ้อนทับของ ${S[0].n} และ ${S[1].n} = <b>${both}</b> รายการ (Jaccard ${(both/(sz(0)+sz(1)-both||1)).toFixed(2)})</li>`}
+function heat(){need(2);const k=D.nc.length,r=(a,b)=>D.S.reduce((s,z)=>s+z[a]*z[b],0)/D.n,cs=Math.min(64,(H-150)/k,(W-330)/k),x0=(W-k*cs)/2+30,y0=95;let bs=[0,0,0],bn=[0,0,0];
+for(let i=0;i<k;i++){t(D.nc[i],x0-8,y0+i*cs+cs/2+4,11,'right');t(D.nc[i].slice(0,9),x0+i*cs+cs/2,y0-8,10,'center');for(let j=0;j<k;j++){const v=r(i,j);c.fillStyle=v>=0?mix('#ffffff',cc(0),v):mix('#ffffff',cc(3),-v);c.fillRect(x0+j*cs,y0+i*cs,cs-1,cs-1);t(v.toFixed(2),x0+j*cs+cs/2,y0+i*cs+cs/2+4,Math.min(12,cs/4.5),'center',Math.abs(v)>.65?'#fff':'#222');if(i<j){if(v>bs[0]||!bs[1]&&!bs[2]&&0)bs=[v,i,j];if(v<bn[0])bn=[v,i,j]}}}
+for(let i=0;i<=20;i++){c.fillStyle=i<10?mix('#ffffff',cc(3),1-i/10):mix('#ffffff',cc(0),(i-10)/10);c.fillRect(W-80,100+i*12,16,12)}t('+1',W-60,112,11);t('0',W-60,232,11);t('−1',W-60,348,11);
+return`<li>คู่ที่สัมพันธ์ทางบวกมากที่สุด: <b>${D.nc[bs[1]]}</b> กับ <b>${D.nc[bs[2]]}</b> (r = ${bs[0].toFixed(2)})</li><li>คู่ที่สัมพันธ์ทางลบมากที่สุด: <b>${D.nc[bn[1]]}</b> กับ <b>${D.nc[bn[2]]}</b> (r = ${bn[0].toFixed(2)})</li><li>สีของธีมโทนแรก = บวก, โทนที่สี่ = ลบ, ขาว = ไม่สัมพันธ์</li>`}
+function sil(){if(D.cls.length<2)throw Error('ต้องมีคอลัมน์กลุ่ม/คลาสอย่างน้อย 2 กลุ่ม');const st=Math.ceil(D.n/300),ix=D.y.map((_,i)=>i).filter(i=>i%st==0),d=(a,b)=>Math.hypot(...D.S[a].map((v,j)=>v-D.S[b][j]));
+const s=ix.map(i=>{const m=D.cls.map(()=>[0,0]);ix.forEach(j=>{if(j!=i){m[D.y[j]][0]+=d(i,j);m[D.y[j]][1]++}});const a=m[D.y[i]][1]?m[D.y[i]][0]/m[D.y[i]][1]:0;let b=1e9;m.forEach((e,k)=>{if(k!=D.y[i]&&e[1])b=Math.min(b,e[0]/e[1])});return{k:D.y[i],v:(b-a)/Math.max(a,b)||0}}).sort((a,b)=>a.k-b.k||b.v-a.v);
+const L=100,R=W-40,T0=70,B=H-60,X=v=>L+(v+.4)/1.4*(R-L),h=(B-T0)/s.length,avg=mean(s.map(e=>e.v));for(let v=-.4;v<=1.01;v+=.2){ln(X(v),T0,X(v),B,'#eee');t(v.toFixed(1),X(v),B+16,11,'center','#666')}
+s.forEach((e,i)=>{c.fillStyle=cc(e.k);c.fillRect(X(0),T0+i*h,X(e.v)-X(0),Math.max(h-.3,.7))});ln(X(0),T0,X(0),B,'#666');c.setLineDash([5,4]);ln(X(avg),T0,X(avg),B,'#d33',1.5);c.setLineDash([]);t('ค่าเฉลี่ย '+avg.toFixed(2),X(avg)+4,T0-4,11,'left','#d33');t('Silhouette coefficient',(L+R)/2,H-22,13,'center');
+return`<li>ค่า Silhouette เฉลี่ยรวม = <b>${avg.toFixed(3)}</b> (${avg>.7?'แยกกลุ่มชัดเจนมาก':avg>.5?'โครงสร้างกลุ่มสมเหตุสมผล':avg>.25?'โครงสร้างกลุ่มค่อนข้างอ่อน':'กลุ่มทับซ้อนกันมาก'})</li>`+D.cls.map((k,i)=>{const v=s.filter(e=>e.k==i).map(e=>e.v);return v.length?`<li>กลุ่ม <b>${k}</b>: เฉลี่ย ${mean(v).toFixed(3)}, จุดที่ค่าติดลบ (อาจอยู่ผิดกลุ่ม) ${v.filter(x=>x<0).length} จุด</li>`:''}).join('')}
+function nomo(){if(D.cls.length<2)throw Error('ต้องมีคอลัมน์กลุ่ม/คลาสอย่างน้อย 2 กลุ่ม');const k=D.nc.length,ps=D.cls.length-1,y=D.y.map(v=>+(v==ps));let w=Array(k).fill(0),b=0;
+for(let e=0;e<600;e++){const g=Array(k).fill(0);let gb=0;D.S.forEach((z,i)=>{const er=1/(1+Math.exp(-(b+z.reduce((s,v,j)=>s+v*w[j],0))))-y[i];gb+=er;z.forEach((v,j)=>g[j]+=er*v)});w=w.map((v,j)=>v-.5*(g[j]/D.n+.01*v));b-=.5*gb/D.n}
+const lo=D.nc.map((_,j)=>Math.min(...col(j))),hi=D.nc.map((_,j)=>Math.max(...col(j))),rg=w.map((v,j)=>Math.abs(v)*(hi[j]-lo[j])/D.sg[j]),sc=100/Math.max(...rg),L=190,Wd=W-L-50,gap=Math.min(55,(H-230)/k),px=p=>L+p/100*Wd;
+t('Points',L-12,78,13,'right','#222',1);ln(L,74,L+Wd,74,'#666');for(let p=0;p<=100;p+=10){ln(px(p),70,px(p),78,'#666');t(p,px(p),64,11,'center','#666')}
+let sm=0;D.nc.forEach((n,j)=>{const Y=110+j*gap;sm+=w[j]>=0?w[j]*(lo[j]-D.mu[j])/D.sg[j]:w[j]*(hi[j]-D.mu[j])/D.sg[j];const f=x=>(w[j]>=0?x-lo[j]:hi[j]-x)*Math.abs(w[j])/D.sg[j]*sc;t(n,L-12,Y+4,13,'right','#222',1);ln(px(0),Y,px(f(w[j]>=0?hi[j]:lo[j])),Y,cc(j),3);
+for(let u=0;u<=4;u++){const x=lo[j]+(hi[j]-lo[j])*u/4;ln(px(f(x)),Y-5,px(f(x)),Y+5,cc(j),2);t(+x.toFixed(2),px(f(x)),Y-9,10,'center','#555')}});
+const Tm=rg.reduce((a,v)=>a+v*sc,0),Y1=110+k*gap+20;t('Total points',L-12,Y1+4,13,'right','#222',1);ln(L,Y1,L+Wd,Y1,'#666',2);for(let u=0;u<=5;u++){const x=L+Wd*u/5;ln(x,Y1-5,x,Y1+5,'#666');t(Math.round(Tm*u/5),x,Y1-9,11,'center','#555')}
+const Y2=Y1+50;t('P('+D.cls[ps]+')',L-12,Y2+4,13,'right','#222',1);ln(L,Y2,L+Wd,Y2,'#666',2);[.02,.05,.1,.25,.5,.75,.9,.95,.98].forEach(p=>{const Tp=(Math.log(p/(1-p))-b-sm)*sc;if(Tp>=0&&Tp<=Tm){const x=L+Tp/Tm*Wd;ln(x,Y2-5,x,Y2+5,'#666');t(p,x,Y2+20,11,'center','#555')}});
+const im=rg.map((v,j)=>[v,j]).sort((a,b)=>b[0]-a[0]);
+return`<li>เป้าหมาย: กลุ่ม <b>${D.cls[ps]}</b> เทียบกับกลุ่มอื่นทั้งหมด</li><li>ตัวแปรที่มีผลมากที่สุด (ช่วงคะแนนกว้างสุด): <b>${D.nc[im[0][1]]}</b>${im[1]?`, รองลงมา <b>${D.nc[im[1][1]]}</b>`:''}</li><li>วิธีอ่าน: อ่านคะแนนของแต่ละตัวแปรจากสเกลบน รวมกัน แล้วลากลงแกน Total points เพื่ออ่านความน่าจะเป็น</li><li>ทิศทาง: ${D.nc.map((n,j)=>n+(w[j]>=0?' ↑เพิ่มโอกาส':' ↓ลดโอกาส')).join(', ')}</li>`}
+function nn(){if(D.cls.length<2)throw Error('ต้องมีคอลัมน์กลุ่ม/คลาสอย่างน้อย 2 กลุ่ม');const st=Math.ceil(D.n/300),ix=D.y.map((_,i)=>i).filter(i=>i%st==0),k=D.nc.length,K=D.cls.length,Hn=6,g=(a,b)=>Array.from({length:a},()=>Array.from({length:b},()=>(rnd()-.5)*.8));
+let W1=g(k,Hn),b1=Array(Hn).fill(0),W2=g(Hn,K),b2=Array(K).fill(0),acc=0;
+for(let e=0;e<600;e++){const g1=W1.map(r=>r.map(()=>0)),gb1=Array(Hn).fill(0),g2=W2.map(r=>r.map(()=>0)),gb2=Array(K).fill(0);acc=0;
+ix.forEach(i=>{const x=D.S[i],h=b1.map((b,u)=>Math.tanh(b+x.reduce((s,v,j)=>s+v*W1[j][u],0))),z=b2.map((b,o)=>b+h.reduce((s,v,u)=>s+v*W2[u][o],0)),mx=Math.max(...z),ez=z.map(v=>Math.exp(v-mx)),sm=ez.reduce((a,b)=>a+b),p=ez.map(v=>v/sm);if(p.indexOf(Math.max(...p))==D.y[i])acc++;
+const d=p.map((v,o)=>v-(o==D.y[i]?1:0)),dh=h.map((v,u)=>(1-v*v)*d.reduce((s,dv,o)=>s+dv*W2[u][o],0));d.forEach((dv,o)=>{gb2[o]+=dv;h.forEach((hv,u)=>g2[u][o]+=hv*dv)});dh.forEach((dv,u)=>{gb1[u]+=dv;x.forEach((xv,j)=>g1[j][u]+=xv*dv)})});
+const lr=.5/ix.length;W1=W1.map((r,j)=>r.map((v,u)=>v-lr*g1[j][u]));b1=b1.map((v,u)=>v-lr*gb1[u]);W2=W2.map((r,u)=>r.map((v,o)=>v-lr*g2[u][o]));b2=b2.map((v,o)=>v-lr*gb2[o])}
+const X=[170,450,730],Y=(n,i)=>85+(H-150)*(i+.5)/n,mw=Math.max(...W1.flat().map(Math.abs),...W2.flat().map(Math.abs));
+const ed=(M,xa,na,xb,nb)=>M.forEach((r,a)=>r.forEach((v,b)=>{c.globalAlpha=.55;ln(xa,Y(na,a),xb,Y(nb,b),v>0?cc(0):cc(3),.3+Math.abs(v)/mw*4);c.globalAlpha=1}));ed(W1,X[0],k,X[1],Hn);ed(W2,X[1],Hn,X[2],K);
+const nd=(x,n,i,co)=>{c.fillStyle=co;c.strokeStyle='#444';c.lineWidth=1.5;c.beginPath();c.arc(x,Y(n,i),14,0,7);c.fill();c.stroke()};
+D.nc.forEach((n,i)=>{nd(X[0],k,i,'#fff');t(n,X[0]-22,Y(k,i)+4,12,'right')});for(let i=0;i<Hn;i++)nd(X[1],Hn,i,'#eee');D.cls.forEach((n,i)=>{nd(X[2],K,i,cc(i));t(n,X[2]+22,Y(K,i)+4,12,'left')});
+['Input','Hidden (tanh)','Output (softmax)'].forEach((s,i)=>t(s,X[i],H-30,13,'center','#222',1));
+const imp=D.nc.map((n,j)=>[W1[j].reduce((s,v,u)=>s+Math.abs(v)*W2[u].reduce((a,x)=>a+Math.abs(x),0),0),n]).sort((a,b)=>b[0]-a[0]);
+return`<li>ความแม่นยำบนข้อมูลฝึก = <b>${(acc/ix.length*100).toFixed(1)}%</b> (${ix.length} แถว, ฝึก 600 รอบ)</li><li>ตัวแปรอินพุตที่มีอิทธิพลรวมของน้ำหนักสูงสุด: <b>${imp[0][1]}</b>${imp[1]?`, รองลงมา <b>${imp[1][1]}</b>`:''}</li><li>เป็นความแม่นยำบนข้อมูลที่ใช้ฝึก อาจสูงกว่าการใช้กับข้อมูลใหม่</li>`}
+const Dr={box:()=>boxv(0),violin:()=>boxv(1),scatter:scat,sieve:()=>cont(0),mosaic:()=>cont(1),tree,freeviz,linear:pca,radviz,venn,heat,sil,nomo,nn};
+// ---------- UI ----------
+function ui(){$('vz').innerHTML=V.map(v=>`<button data-v="${v[0]}" class="${v[0]==sel?'on':''}">${v[1]}</button>`).join('');
+$('th').innerHTML=T.map((x,i)=>`<button data-t="${i}" class="${i==th?'on':''}"><span class="sw">${x[1].slice(0,4).map(h=>`<i style="background:${h}"></i>`).join('')}</span>${x[0]}</button>`).join('');
+document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{sel=b.dataset.v;ui()});document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{th=+b.dataset.t;ui()})}
+const kind=()=>V.find(v=>v[0]==sel)[2];
+$('f').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const wb=XLSX.read(ev.target.result,{type:'array'});D=prep(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}));$('fn').textContent=`📄 ${f.name} (${D.n} แถว, ${D.nc.length} คอลัมน์ตัวเลข)`;msg('')}catch(x){D=null;msg('อ่านไฟล์ไม่สำเร็จ: '+x.message)}};r.readAsArrayBuffer(f)};
+$('demo').onclick=()=>{sd=7;D=prep(mk[kind()]());$('fn').textContent=`🧪 ข้อมูลตัวอย่างสำหรับ ${V.find(v=>v[0]==sel)[1]} (${D.n} แถว)`;msg('')};
+$('dl').onclick=()=>{sd=7;const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(mk[kind()]()),'Sheet1');XLSX.writeFile(wb,`sample_${sel}.xlsx`)};
+$('run').onclick=()=>{if(!D)return msg('กรุณาแนบไฟล์ Excel หรือกด "ทดลองใช้ข้อมูลตัวอย่าง" ก่อน');const v=V.find(x=>x[0]==sel);
+try{if(v[2]=='n')need(['box','violin','tree','nomo','nn','sil'].includes(sel)?1:2);c.fillStyle='#fff';c.fillRect(0,0,W,H);t(v[1],W/2,26,19,'center','#222',1);if(['box','violin','scatter','freeviz','linear','radviz','sil'].includes(sel))leg();
+const ex=Dr[sel]();$('exp').innerHTML=`<h2>📝 คำอธิบายการวิเคราะห์ข้อมูล</h2><p>${v[3]}</p><ul>${ex}</ul>`;$('res').hidden=false;msg('');$('res').scrollIntoView({behavior:'smooth'})}catch(e){$('res').hidden=true;msg('⚠ '+e.message)}};
+$('png').onclick=()=>{const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=`${sel}.png`;a.click()};
+$('reset').onclick=()=>{sel='box';th=0;D=null;$('f').value='';$('fn').textContent='';$('res').hidden=true;msg('');ui()};
+ui();
+</script></body></html>
